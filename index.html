@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Meta Tags -->
+    <meta name="description" content="Aplikasi pembuat Worksheet Menyusun Huruf (Anagram) Bahasa Arab otomatis.">
+    <meta property="og:title" content="Alfal Print: Generator Menyusun Huruf Arab (Bagian 1)">
+    <meta property="og:type" content="website">
+
+    <title>Alfal Print: Generator Menyusun Huruf (Bagian 1)</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@400;500;600;700&family=Quicksand:wght@600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons & Tailwind -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTML to PDF Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        arabic: ['Amiri', 'serif'],
+                        display: ['Quicksand', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            700: '#0f766e',
+                            900: '#134e4a',
+                        },
+                        accent: {
+                            500: '#f59e0b',
+                            600: '#d97706',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* CSS Khusus untuk Worksheet A4 */
+        body { background-color: #f1f5f9; }
+
+        .a4-container {
+            width: 210mm;
+            height: 297mm;
+            background: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            margin: 0 auto;
+            position: relative;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        #worksheet-content {
+            padding: 6mm; 
+            width: 100%;
+            height: 100%;
+            background: white;
+            color: black;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        /* Dekorasi Bingkai Dalam */
+        .worksheet-inner-border {
+            border: 3px dashed #5eead4; 
+            border-radius: 20px;
+            padding: 5mm; 
+            flex-grow: 1; 
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background-color: #fefce8;
+            box-sizing: border-box;
+        }
+
+        .writing-line {
+            border-bottom: 2px dotted #94a3b8;
+            width: 100%;
+            height: 16px;
+            display: inline-block;
+        }
+
+        /* JUMBLED LETTERS STYLES */
+        .jumbled-container {
+            display: flex;
+            flex-direction: column;
+            gap: 5px; 
+            margin: 2px 0;
+            width: 100%;
+            flex-grow: 1;
+        }
+
+        .jumbled-item {
+            background-color: white;
+            border: 2px solid #bce3df;
+            border-radius: 10px;
+            padding: 6px 12px 8px 12px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            position: relative;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: center; 
+        }
+
+        .letter-box {
+            padding: 0 4px;
+            display: inline-flex; 
+            align-items: center; 
+            justify-content: center;
+            font-family: 'Amiri', serif;
+            font-size: 24px; 
+            font-weight: bold;
+            color: #0f766e;
+            line-height: 1; 
+            /* Mengangkat huruf ke atas agar harakat bawah tidak nabrak */
+            transform: translateY(-6px); 
+        }
+
+        /* Garis jawaban tipis transparan */
+        .answer-line {
+            flex: 1;
+            border-bottom: 1px dashed rgba(20, 184, 166, 0.4); 
+            position: relative;
+            height: 28px; 
+            margin-right: 8px;
+        }
+
+        /* Answer Key Styles */
+        .answer-text {
+            display: none;
+            position: absolute;
+            inset: 0;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Amiri', serif;
+            font-size: 24px; 
+            font-weight: bold;
+            color: #d97706;
+            line-height: 1;
+            /* Mengangkat teks jawaban ke atas agar harakat bawah tidak nabrak garis */
+            transform: translateY(-6px); 
+        }
+
+        .show-answer .answer-text { display: flex; }
+        .show-answer .jumbled-item { border-color: #fde68a !important; background-color: #fffbeb !important; }
+        .show-answer .answer-line { border-bottom-color: rgba(245, 158, 11, 0.6); }
+
+        /* Mode Cetak */
+        @media print {
+            @page { size: A4 portrait; margin: 0mm; }
+            body { background: white; margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .no-print { display: none !important; }
+            .a4-container { box-shadow: none; margin: 0; width: 210mm; height: 297mm; }
+        }
+
+        /* OVERRIDES FOR MODE POLOS (TANPA HIASAN) */
+        .mode-polos .worksheet-inner-border {
+            border: 2px solid #334155 !important;
+            border-radius: 0 !important;
+            background-color: #ffffff !important;
+        }
+        .mode-polos .decor-item {
+            display: none !important;
+        }
+        .mode-polos .header-area {
+            border-bottom-color: #334155 !important;
+        }
+        .mode-polos .school-icon {
+            background-color: transparent !important;
+            color: #334155 !important;
+            border: 1px solid #334155 !important;
+        }
+        .mode-polos .nilai-box {
+            border-color: #334155 !important;
+            background-color: #ffffff !important;
+            border-style: solid !important;
+        }
+        .mode-polos .nilai-title {
+            color: #334155 !important;
+            border-bottom-color: #334155 !important;
+            border-bottom-style: solid !important;
+        }
+        .mode-polos .nilai-strip {
+            display: none !important;
+        }
+        .mode-polos .ribbon-judul {
+            background-color: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+        }
+        .mode-polos .ribbon-judul h1 {
+            color: #1e293b !important;
+        }
+        .mode-polos .arahan-box {
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+        }
+        .mode-polos .arahan-box i {
+            color: #475569 !important;
+        }
+        
+        /* Mode Polos Jumbled Items */
+        .mode-polos .jumbled-item {
+            border-color: #94a3b8 !important;
+            border-radius: 4px !important;
+            box-shadow: none !important;
+        }
+        .mode-polos .letter-box {
+            color: #1e293b !important;
+        }
+        .mode-polos .answer-line {
+            border-bottom: 1px dashed rgba(51, 65, 85, 0.3) !important;
+        }
+        .mode-polos .show-answer .jumbled-item {
+            border-color: #334155 !important;
+            background-color: #f1f5f9 !important;
+        }
+        .mode-polos .show-answer .answer-text {
+            color: #1e293b !important;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="min-h-screen md:h-screen flex flex-col bg-slate-100 md:overflow-hidden">
+
+    <!-- LOGIN OVERLAY -->
+    <div id="login-overlay" class="fixed inset-0 bg-slate-900 bg-opacity-95 z-[100] flex items-center justify-center backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 transform transition-all">
+            <div class="text-center mb-6">
+                <div class="bg-brand-100 text-brand-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-brand-200">
+                    <i class="fa-solid fa-puzzle-piece text-2xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800">Alfal Print - Menyusun Huruf</h2>
+                <p class="text-sm text-slate-500 mt-1">Sistem Generator Anagram Arab</p>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Token Akses Khusus</label>
+                    <input type="password" id="login-token" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Masukkan token (Bagian 1)">
+                </div>
+                <div id="login-error" class="hidden bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-200 text-center font-medium">
+                    Token akses salah atau kosong!
+                </div>
+                <button onclick="handleLogin()" class="w-full bg-brand-500 hover:bg-brand-600 text-white font-bold py-3 rounded-lg transition mt-2 flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-unlock-keyhole"></i> Buka Aplikasi
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Navigation -->
+    <nav class="bg-white border-b border-gray-200 px-4 py-3 md:px-6 md:py-4 flex flex-col md:flex-row justify-between items-center no-print shrink-0 z-10 gap-3 md:gap-0 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="bg-brand-100 text-brand-600 p-2 rounded-lg border border-brand-200">
+                <i class="fa-solid fa-puzzle-piece text-xl"></i>
+            </div>
+            <div class="text-center md:text-left">
+                <h1 class="font-bold text-xl text-slate-800">ALFAL.ID <span class="text-xs bg-brand-500 text-white px-2 py-0.5 rounded-full ml-1">PRO</span></h1>
+                <p class="text-xs text-slate-500">Generator Menyusun Huruf (Bagian 1)</p>
+            </div>
+        </div>
+        
+        <div class="flex flex-wrap justify-center gap-2 md:gap-3">
+            <button onclick="toggleAnswer()" id="btn-toggle-answer" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300 px-3 py-2 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-bold transition flex items-center gap-2">
+                <i class="fa-solid fa-eye"></i> Kunci Jawaban
+            </button>
+            <button onclick="exportToPDF()" id="btn-download-pdf" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-file-pdf"></i> Download PDF
+            </button>
+            <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-print"></i> Cetak Kertas
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- Sidebar Controls -->
+        <aside class="w-full md:w-80 bg-white border-b md:border-r border-gray-200 p-4 md:p-6 flex flex-col gap-4 md:gap-6 no-print shadow-sm z-10 overflow-y-visible md:overflow-y-auto shrink-0">
+            <div>
+                <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Pengaturan Worksheet</h2>
+                <p class="text-xs text-slate-500 mb-4">Sistem mengacak huruf hijaiyah otomatis.</p>
+                
+                <label class="block text-xs md:text-sm font-medium text-slate-700 mb-1">Gaya Tampilan</label>
+                <select id="style-select" onchange="toggleStyle()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4 bg-white">
+                    <option value="dengan_hiasan">✨ Pakai Hiasan (Ceria)</option>
+                    <option value="tanpa_hiasan">📄 Tanpa Hiasan (Polos)</option>
+                </select>
+
+                <label class="block text-xs md:text-sm font-medium text-slate-700 mb-1">Pilih Tema Mufrodat</label>
+                <select id="theme-select" onchange="generateWorksheet()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4">
+                    <!-- Tema dimuat otomatis -->
+                </select>
+
+                <label class="block text-xs md:text-sm font-medium text-slate-700 mb-1">Jumlah Soal</label>
+                <select id="difficulty" onchange="generateWorksheet()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4 bg-teal-50">
+                    <option value="mudah">Sedikit (5 Soal)</option>
+                    <option value="sedang">Standar (8 Soal)</option>
+                    <option value="sulit" selected>Penuh (10 Soal)</option>
+                </select>
+
+                <label class="block text-xs md:text-sm font-medium text-slate-700 mb-1">Judul Lembaga / Sekolah</label>
+                <input type="text" id="school-name" oninput="updateHeader()" value="SDIT Al-Qalam Islamic School" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+            </div>
+
+            <button onclick="generateWorksheet()" class="w-full bg-brand-50 hover:bg-brand-100 border border-brand-300 text-brand-700 px-4 py-3 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-dice"></i> Acak Huruf Baru
+            </button>
+            
+            <div class="mt-0 md:mt-auto bg-blue-50 p-4 rounded-xl border border-blue-100 relative overflow-hidden">
+                <i class="fa-solid fa-lightbulb absolute -right-3 -bottom-3 text-6xl text-blue-100 opacity-50"></i>
+                <h3 class="text-xs font-bold text-blue-800 mb-1 relative z-10">Tingkat Profesional</h3>
+                <p class="text-xs text-blue-600 leading-relaxed relative z-10">
+                    Huruf akan diacak posisinya. Siswa dilatih untuk menyambung huruf hijaiyah tunggal (Kanan ke Kiri) menjadi kata yang memiliki arti sesuai petunjuk.
+                </p>
+            </div>
+        </aside>
+
+        <!-- Preview Area -->
+        <div class="flex-1 overflow-auto p-4 md:p-8 bg-slate-200 pb-20">
+            <div class="flex justify-center min-w-max">
+                <!-- TARGET EXPORT: a4-container -->
+                <div class="a4-container" id="worksheet-wrapper">
+                    <div id="worksheet-content" class="worksheet-page">
+                        
+                        <!-- BINGKAI DALAM CERIA -->
+                        <div class="worksheet-inner-border">
+                            
+                            <!-- Dekorasi Sudut -->
+                            <div class="decor-item absolute top-4 left-4 text-[#bfeae5] text-xl" style="transform: rotate(-45deg);"><i class="fa-solid fa-leaf"></i></div>
+                            <div class="decor-item absolute top-4 right-4 text-[#bfeae5] text-xl" style="transform: rotate(45deg);"><i class="fa-solid fa-leaf"></i></div>
+                            
+                            <!-- Header (Dikurangi marginnya) -->
+                            <div class="header-area flex justify-between items-start border-b-2 border-teal-600 pb-2 mb-2 shrink-0 px-2 relative z-10">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <div class="school-icon bg-teal-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">
+                                            <i class="fa-solid fa-school"></i>
+                                        </div>
+                                        <h2 id="display-school" class="school-name-display font-bold text-lg uppercase tracking-wide text-teal-800">SDIT Al-Qalam Islamic School</h2>
+                                    </div>
+                                    <p class="text-xs font-semibold text-slate-600 ml-8">Aktivitas Menyusun Huruf Acak (Anagram)</p>
+                                </div>
+                                
+                                <!-- FORM BIODATA -->
+                                <div class="w-56 bg-white p-2 rounded-lg border border-teal-100 ml-6">
+                                    <div class="grid grid-cols-[auto_10px_1fr] gap-x-2 gap-y-1 text-[10px]">
+                                        <div class="font-bold text-slate-700 flex items-center"><i class="fa-solid fa-user-graduate text-teal-500 w-4 text-center mr-1"></i> Nama</div>
+                                        <div class="font-bold text-slate-700 text-center">:</div>
+                                        <div><span class="writing-line w-full"></span></div>
+                                        
+                                        <div class="font-bold text-slate-700 flex items-center"><i class="fa-solid fa-chalkboard-user text-teal-500 w-4 text-center mr-1"></i> Kelas</div>
+                                        <div class="font-bold text-slate-700 text-center">:</div>
+                                        <div><span class="writing-line w-full"></span></div>
+                                        
+                                        <div class="font-bold text-slate-700 flex items-center"><i class="fa-solid fa-calendar-day text-teal-500 w-4 text-center mr-1"></i> Tanggal</div>
+                                        <div class="font-bold text-slate-700 text-center">:</div>
+                                        <div><span class="writing-line w-full"></span></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Stempel Nilai (Diperkecil sedikit) -->
+                                <div class="nilai-box w-16 h-16 border-2 border-dashed border-teal-500 rounded-xl flex flex-col items-center justify-start ml-4 shrink-0 bg-[#f0fdfa] relative overflow-hidden">
+                                    <div class="decor-item absolute -right-2 -bottom-2 text-teal-100 opacity-40"><i class="fa-solid fa-award text-3xl"></i></div>
+                                    <span class="nilai-title w-full text-center border-b-2 border-dashed border-teal-500 py-0.5 text-[8px] font-extrabold uppercase text-teal-700 tracking-widest relative z-10">Nilai</span>
+                                    <div class="flex-1 flex items-center justify-center w-full relative z-10">
+                                        <span class="nilai-strip text-xl font-bold text-transparent">-</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Title Area -->
+                            <div class="text-center mb-2 shrink-0 relative z-10">
+                                <!-- Ribbon Judul -->
+                                <div class="ribbon-judul inline-block bg-[#ccfbf1] px-6 py-1 rounded-full border border-teal-200 relative mb-2">
+                                    <div class="decor-item absolute -left-2 -top-2 text-yellow-400 text-lg" style="transform: rotate(-12deg);"><i class="fa-solid fa-star"></i></div>
+                                    <h1 class="font-display font-black text-lg text-teal-900 tracking-wider">SUSUN DAN SAMBUNG HURUF</h1>
+                                    <div class="decor-item absolute -right-2 -top-2 text-yellow-400 text-lg" style="transform: rotate(12deg);"><i class="fa-solid fa-star"></i></div>
+                                </div>
+                                
+                                <!-- TEMA ARAB (Font diperkecil dari text-4xl ke text-3xl) -->
+                                <div class="mt-1 flex flex-col items-center justify-center">
+                                    <span class="arabic-theme-display text-teal-800 font-bold font-arabic text-3xl leading-normal" style="line-height: 1.4;" id="display-arabic-theme">أَثَاثُ المَنْزِلِ</span>
+                                    <span class="text-slate-600 font-bold text-xs mt-1 bg-white px-3 py-0.5 rounded-full border border-slate-200" id="display-theme-meaning">(Isi Rumah)</span>
+                                </div>
+
+                                <!-- ARAHAN -->
+                                <div class="arahan-box" style="margin-top: 6px; background-color: #fffbeb; border: 1px solid #fcd34d; padding: 4px 10px; border-radius: 6px; display: inline-block;">
+                                    <span style="font-size: 11px; font-weight: bold; color: #334155;">
+                                        <i class="fa-solid fa-circle-info text-amber-500" style="margin-right: 4px;"></i> 
+                                        Arahan: Susun dan sambunglah huruf acak di bawah ini menjadi kosakata bahasa Arab!
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- JUMBLED LETTERS AREA -->
+                            <div class="jumbled-container relative z-10" id="list-container">
+                                <!-- Items di-generate oleh JS -->
+                            </div>
+
+                        </div> <!-- End Inner Border -->
+                        
+                        <!-- Watermark Brand / Footer -->
+                        <div class="w-full text-center shrink-0 flex items-center justify-center gap-2 pt-2 text-slate-400">
+                            <i class="fa-solid fa-rocket text-[9px]"></i>
+                            <p class="font-bold tracking-[0.2em] uppercase" style="font-size: 6.5pt;">ALFAL.ID | MEDIA BELAJAR INTERAKTIF</p>
+                            <i class="fa-solid fa-rocket text-[9px]"></i>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Dictionary Lengkap Konsisten dengan Bagian 1, 3, & 4
+        const dictionary = {
+             rumah: { title: "أَثَاثُ المَنْزِلِ", themeMeaning: "Isi Rumah", words: [ { meaning: "Rumah", letters: ["بَ", "يْ", "تٌ"] }, { meaning: "Pintu", letters: ["بَ", "ا", "بٌ"] }, { meaning: "Kasur", letters: ["سَ", "رِ", "يْ", "رٌ"] }, { meaning: "Lemari", letters: ["خِ", "زَ", "ا", "نَ", "ةٌ"] }, { meaning: "Cermin", letters: ["مِ", "رْ", "آ", "ةٌ"] }, { meaning: "Bantal", letters: ["مِ", "خَ", "دَّ", "ةٌ"] }, { meaning: "Jendela", letters: ["نَ", "ا", "فِ", "ذَ", "ةٌ"] }, { meaning: "Kursi", letters: ["كُ", "رْ", "سِ", "يٌّ"] }, { meaning: "Lampu", letters: ["مِ", "صْ", "بَ", "ا", "حٌ"] }, { meaning: "Dinding", letters: ["جِ", "دَ", "ا", "رٌ"] } ] },
+            sekolah: { title: "الأَدَوَاتُ المَدْرَسِيَّةُ", themeMeaning: "Peralatan Sekolah", words: [ { meaning: "Buku", letters: ["كِ", "تَ", "ا", "بٌ"] }, { meaning: "Pena", letters: ["قَ", "لَ", "مٌ"] }, { meaning: "Penggaris", letters: ["مِ", "سْ", "طَ", "رَ", "ةٌ"] }, { meaning: "Penghapus", letters: ["مِ", "مْ", "حَ", "ا", "ةٌ"] }, { meaning: "Buku Tulis", letters: ["دَ", "فْ", "تَ", "رٌ"] }, { meaning: "Tas", letters: ["حَ", "قِ", "يْ", "بَ", "ةٌ"] }, { meaning: "Papan Tulis", letters: ["سَ", "بُّ", "وْ", "رَ", "ةٌ"] }, { meaning: "Sekolah", letters: ["مَ", "دْ", "رَ", "سَ", "ةٌ"] }, { meaning: "Meja", letters: ["مَ", "كْ", "تَ", "بٌ"] }, { meaning: "Kelas", letters: ["فَ", "صْ", "لٌ"] } ] },
+            hewan: { title: "الحَيَوَانَاتُ", themeMeaning: "Hewan", words: [ { meaning: "Kucing", letters: ["قِ", "طٌّ"] }, { meaning: "Anjing", letters: ["كَ", "لْ", "بٌ"] }, { meaning: "Burung", letters: ["طَ", "يْ", "رٌ"] }, { meaning: "Ikan", letters: ["سَ", "مَ", "كَ", "ةٌ"] }, { meaning: "Singa", letters: ["أَ", "سَ", "دٌ"] }, { meaning: "Kuda", letters: ["حِ", "صَ", "ا", "نٌ"] }, { meaning: "Gajah", letters: ["فِ", "يْ", "لٌ"] }, { meaning: "Ayam", letters: ["دَ", "جَ", "ا", "جَ", "ةٌ"] }, { meaning: "Sapi", letters: ["بَ", "قَ", "رَ", "ةٌ"] }, { meaning: "Kambing", letters: ["غَ", "نَ", "مٌ"] } ] },
+            anggotaTubuh: { title: "أَعْضَاءُ الجِسْمِ", themeMeaning: "Anggota Tubuh", words: [ { meaning: "Kepala", letters: ["رَ", "أْ", "سٌ"] }, { meaning: "Mata", letters: ["عَ", "يْ", "نٌ"] }, { meaning: "Hidung", letters: ["أَ", "نْ", "فٌ"] }, { meaning: "Telinga", letters: ["أُ", "ذُ", "نٌ"] }, { meaning: "Mulut", letters: ["فَ", "مٌ"] }, { meaning: "Tangan", letters: ["يَ", "دٌ"] }, { meaning: "Kaki", letters: ["رِ", "جْ", "لٌ"] }, { meaning: "Rambut", letters: ["شَ", "عْ", "رٌ"] }, { meaning: "Perut", letters: ["بَ", "طْ", "نٌ"] }, { meaning: "Dada", letters: ["صَ", "دْ", "رٌ"] } ] },
+            buah: { title: "الفَوَاكِهُ", themeMeaning: "Buah-buahan", words: [ { meaning: "Apel", letters: ["تُ", "فَّ", "ا", "حٌ"] }, { meaning: "Pisang", letters: ["مَ", "وْ", "زٌ"] }, { meaning: "Jeruk", letters: ["بُ", "رْ", "تُ", "قَ", "ا", "لٌ"] }, { meaning: "Anggur", letters: ["عِ", "نَ", "بٌ"] }, { meaning: "Semangka", letters: ["بِ", "طِّ", "يْ", "خٌ"] }, { meaning: "Kurma", letters: ["تَ", "مْ", "رٌ"] }, { meaning: "Nanas", letters: ["أَ", "نَ", "ا", "نَ", "ا", "سٌ"] }, { meaning: "Stroberi", letters: ["فَ", "رَ", "ا", "وِ", "لَ", "ةٌ"] }, { meaning: "Delima", letters: ["رُ", "مَّ", "ا", "نٌ"] }, { meaning: "Mangga", letters: ["مَ", "ا", "نْ", "جُ", "و"] } ] },
+            keluarga: { title: "الأُسْرَةُ", themeMeaning: "Keluarga", words: [ { meaning: "Ayah", letters: ["أَ", "بٌ"] }, { meaning: "Ibu", letters: ["أُ", "مٌّ"] }, { meaning: "Kakek", letters: ["جَ", "دٌّ"] }, { meaning: "Nenek", letters: ["جَ", "دَّ", "ةٌ"] }, { meaning: "Saudara Laki-laki", letters: ["أَ", "خٌ"] }, { meaning: "Saudari Perempuan", letters: ["أُ", "خْ", "تٌ"] }, { meaning: "Paman", letters: ["عَ", "مٌّ"] }, { meaning: "Bibi", letters: ["عَ", "مَّ", "ةٌ"] }, { meaning: "Anak Laki-laki", letters: ["اِ", "بْ", "نٌ"] }, { meaning: "Anak Perempuan", letters: ["بِ", "نْ", "تٌ"] } ] },
+            warna: { title: "الأَلْوَانُ", themeMeaning: "Warna", words: [ { meaning: "Merah", letters: ["أَ", "حْ", "مَ", "رُ"] }, { meaning: "Putih", letters: ["أَ", "بْ", "يَ", "ضُ"] }, { meaning: "Hitam", letters: ["أَ", "سْ", "وَ", "دُ"] }, { meaning: "Hijau", letters: ["أَ", "خْ", "ضَ", "رُ"] }, { meaning: "Kuning", letters: ["أَ", "صْ", "فَ", "رُ"] }, { meaning: "Biru", letters: ["أَ", "زْ", "رَ", "قُ"] }, { meaning: "Cokelat", letters: ["بُ", "نِّ", "يٌّ"] }, { meaning: "Oranye", letters: ["بُ", "رْ", "تُ", "قَ", "ا", "لِ", "يٌّ"] }, { meaning: "Abu-abu", letters: ["رَ", "مَ", "ا", "دِ", "يٌّ"] }, { meaning: "Merah Muda", letters: ["وَ", "رْ", "دِ", "يٌّ"] } ] },
+            transportasi: { title: "المُوَاصَلَاتُ", themeMeaning: "Transportasi", words: [ { meaning: "Mobil", letters: ["سَ", "يَّ", "ا", "رَ", "ةٌ"] }, { meaning: "Sepeda", letters: ["دَ", "رَّ", "ا", "جَ", "ةٌ"] }, { meaning: "Kereta Api", letters: ["قِ", "طَ", "ا", "رٌ"] }, { meaning: "Pesawat", letters: ["طَ", "ا", "ئِ", "رَ", "ةٌ"] }, { meaning: "Kapal", letters: ["سَ", "فِ", "يْ", "نَ", "ةٌ"] }, { meaning: "Bus", letters: ["حَ", "ا", "فِ", "لَ", "ةٌ"] }, { meaning: "Truk", letters: ["شَ", "ا", "حِ", "نَ", "ةٌ"] }, { meaning: "Perahu", letters: ["قَ", "ا", "رِ", "بٌ"] }, { meaning: "Kereta/Gerobak", letters: ["عَ", "رَ", "بَ", "ةٌ"] }, { meaning: "Roket", letters: ["صَ", "ا", "رُ", "وْ", "خٌ"] } ] },
+            pakaian: { title: "المَلَابِسُ", themeMeaning: "Pakaian", words: [ { meaning: "Kemeja", letters: ["قَ", "مِ", "يْ", "صٌ"] }, { meaning: "Celana", letters: ["سِ", "رْ", "وَ", "ا", "لٌ"] }, { meaning: "Sepatu", letters: ["حِ", "ذَ", "ا", "ءٌ"] }, { meaning: "Topi", letters: ["قُ", "بَّ", "عَ", "ةٌ"] }, { meaning: "Kaos Kaki", letters: ["جَ", "وْ", "رَ", "بٌ"] }, { meaning: "Peci/Kopiah", letters: ["قَ", "لَ", "نْ", "سُ", "وَ", "ةٌ"] }, { meaning: "Kerudung", letters: ["خِ", "مَ", "ا", "رٌ"] }, { meaning: "Sorban", letters: ["عِ", "مَ", "ا", "مَ", "ةٌ"] }, { meaning: "Sabuk", letters: ["حِ", "زَ", "ا", "مٌ"] }, { meaning: "Sandal", letters: ["نَ", "عْ", "لٌ"] } ] },
+            profesi: { title: "المِهَنُ", themeMeaning: "Profesi", words: [ { meaning: "Dokter", letters: ["طَ", "بِ", "يْ", "بٌ"] }, { meaning: "Guru", letters: ["مُ", "دَ", "رِّ", "سٌ"] }, { meaning: "Polisi", letters: ["شُ", "رْ", "طِ", "يٌّ"] }, { meaning: "Petani", letters: ["فَ", "لَّ", "ا", "حٌ"] }, { meaning: "Insinyur", letters: ["مُ", "هَ", "نْ", "دِ", "سٌ"] }, { meaning: "Pedagang", letters: ["تَ", "ا", "جِ", "رٌ"] }, { meaning: "Perawat", letters: ["مُ", "مَ", "رِّ", "ضَ", "ةٌ"] }, { meaning: "Penjahit", letters: ["خَ", "يَّ", "ا", "طٌ"] }, { meaning: "Tentara", letters: ["جُ", "نْ", "دِ", "يٌّ"] }, { meaning: "Sopir", letters: ["سَ", "ا", "ئِ", "قٌ"] } ] },
+            tempat: { title: "الأَمَاكِنُ", themeMeaning: "Tempat Umum", words: [ { meaning: "Masjid", letters: ["مَ", "سْ", "جِ", "دٌ"] }, { meaning: "Rumah Sakit", letters: ["مُ", "سْ", "تَ", "شْ", "فَ", "ى"] }, { meaning: "Pasar", letters: ["سُ", "وْ", "قٌ"] }, { meaning: "Perpustakaan", letters: ["مَ", "كْ", "تَ", "بَ", "ةٌ"] }, { meaning: "Bandara", letters: ["مَ", "طَ", "ا", "رٌ"] }, { meaning: "Stasiun", letters: ["مَ", "حَ", "طَّ", "ةٌ"] }, { meaning: "Taman", letters: ["حَ", "دِ", "يْ", "قَ", "ةٌ"] }, { meaning: "Desa", letters: ["قَ", "رْ", "يَ", "ةٌ"] }, { meaning: "Kota", letters: ["مَ", "دِ", "يْ", "نَ", "ةٌ"] }, { meaning: "Jalan", letters: ["شَ", "ا", "رِ", "عٌ"] } ] },
+            sayuran: { title: "الخَضْرَوَاتُ", themeMeaning: "Sayuran", words: [ { meaning: "Tomat", letters: ["طَ", "مَ", "ا", "طِ", "مٌ"] }, { meaning: "Kentang", letters: ["بَ", "طَ", "ا", "طِ", "سٌ"] }, { meaning: "Bawang Merah", letters: ["بَ", "صَ", "لٌ"] }, { meaning: "Bawang Putih", letters: ["ثُ", "وْ", "مٌ"] }, { meaning: "Jagung", letters: ["ذُ", "رَ", "ةٌ"] }, { meaning: "Wortel", letters: ["جَ", "زَ", "رٌ"] }, { meaning: "Timun", letters: ["خِ", "يَ", "ا", "رٌ"] }, { meaning: "Terong", letters: ["بَ", "ا", "ذِ", "نْ", "جَ", "ا", "نٌ"] }, { meaning: "Bayam", letters: ["سَ", "بَ", "ا", "نِ", "خٌ"] }, { meaning: "Kubis / Kol", letters: ["مَ", "لْ", "فُ", "وْ", "فٌ"] } ] },
+            minuman: { title: "المَشْرُوبَاتُ", themeMeaning: "Minuman", words: [ { meaning: "Air", letters: ["مَ", "ا", "ءٌ"] }, { meaning: "Susu", letters: ["حَ", "لِ", "يْ", "بٌ"] }, { meaning: "Kopi", letters: ["قَ", "هْ", "وَ", "ةٌ"] }, { meaning: "Teh", letters: ["شَ", "ا", "يٌ"] }, { meaning: "Jus", letters: ["عَ", "صِ", "يْ", "رٌ"] }, { meaning: "Madu", letters: ["عَ", "سَ", "لٌ"] }, { meaning: "Es", letters: ["ثَ", "لْ", "جٌ"] }, { meaning: "Sirup", letters: ["شَ", "رَ", "ا", "بٌ"] }, { meaning: "Yogurt", letters: ["لَ", "بَ", "نٌ"] }, { meaning: "Jahe", letters: ["زَ", "نْ", "جَ", "بِ", "يْ", "لٌ"] } ] },
+            alam: { title: "الطَّبِيْعَةُ", themeMeaning: "Alam Semesta", words: [ { meaning: "Langit", letters: ["سَ", "مَ", "ا", "ءٌ"] }, { meaning: "Bumi", letters: ["أَ", "رْ", "ضٌ"] }, { meaning: "Matahari", letters: ["شَ", "مْ", "سٌ"] }, { meaning: "Bulan", letters: ["قَ", "مَ", "رٌ"] }, { meaning: "Bintang", letters: ["نَ", "جْ", "مٌ"] }, { meaning: "Gunung", letters: ["جَ", "بَ", "لٌ"] }, { meaning: "Laut", letters: ["بَ", "حْ", "رٌ"] }, { meaning: "Sungai", letters: ["نَ", "هْ", "رٌ"] }, { meaning: "Pohon", letters: ["شَ", "جَ", "رَ", "ةٌ"] }, { meaning: "Hujan", letters: ["مَ", "طَ", "رٌ"] } ] },
+            waktu: { title: "الأَوْقَاتُ وَالجِهَاتُ", themeMeaning: "Waktu & Arah", words: [ { meaning: "Pagi", letters: ["صَ", "بَ", "ا", "حٌ"] }, { meaning: "Siang", letters: ["نَ", "هَ", "ا", "رٌ"] }, { meaning: "Sore", letters: ["مَ", "سَ", "ا", "ءٌ"] }, { meaning: "Malam", letters: ["لَ", "يْ", "لٌ"] }, { meaning: "Hari", letters: ["يَ", "وْ", "مٌ"] }, { meaning: "Bulan (Waktu)", letters: ["شَ", "هْ", "رٌ"] }, { meaning: "Tahun", letters: ["سَ", "نَ", "ةٌ"] }, { meaning: "Utara", letters: ["شَ", "مَ", "ا", "لٌ"] }, { meaning: "Selatan", letters: ["جَ", "نُ", "وْ", "بٌ"] }, { meaning: "Barat", letters: ["غَ", "رْ", "بٌ"] } ] },
+            dapur: { title: "أَدَوَاتُ المَطْبَخِ", themeMeaning: "Peralatan Dapur", words: [ { meaning: "Piring", letters: ["صَ", "حْ", "نٌ"] }, { meaning: "Gelas", letters: ["كُ", "وْ", "بٌ"] }, { meaning: "Sendok", letters: ["مِ", "لْ", "عَ", "قَ", "ةٌ"] }, { meaning: "Garpu", letters: ["شَ", "وْ", "كَ", "ةٌ"] }, { meaning: "Pisau", letters: ["سِ", "كِّ", "يْ", "نٌ"] }, { meaning: "Panci", letters: ["قِ", "دْ", "رٌ"] }, { meaning: "Wajan", letters: ["مِ", "قْ", "لَ", "ا", "ةٌ"] }, { meaning: "Gelas Kaca", letters: ["كَ", "أْ", "سٌ"] }, { meaning: "Teko", letters: ["إِ", "بْ", "رِ", "يْ", "قٌ"] }, { meaning: "Kompor", letters: ["مَ", "وْ", "قِ", "دٌ"] } ] },
+            olahraga: { title: "الرِّيَاضَةُ", themeMeaning: "Olahraga", words: [ { meaning: "Bola", letters: ["كُ", "رَ", "ةٌ"] }, { meaning: "Lapangan", letters: ["مَ", "لْ", "عَ", "بٌ"] }, { meaning: "Tim / Regu", letters: ["فَ", "رِ", "يْ", "قٌ"] }, { meaning: "Raket", letters: ["مِ", "ضْ", "رَ", "بٌ"] }, { meaning: "Gawang", letters: ["مَ", "رْ", "مَ", "ى"] }, { meaning: "Jaring / Net", letters: ["شَ", "بَ", "كَ", "ةٌ"] }, { meaning: "Peluit", letters: ["صَ", "ا", "فِ", "رَ", "ةٌ"] }, { meaning: "Lari", letters: ["جَ", "رْ", "يٌ"] }, { meaning: "Renang", letters: ["سِ", "بَ", "ا", "حَ", "ةٌ"] }, { meaning: "Pemenang", letters: ["فَ", "ا", "ئِ", "زٌ"] } ] },
+            bentuk: { title: "الأَشْكَالُ", themeMeaning: "Bentuk", words: [ { meaning: "Lingkaran", letters: ["دَ", "ا", "ئِ", "رَ", "ةٌ"] }, { meaning: "Persegi", letters: ["مُ", "رَ", "بَّ", "عٌ"] }, { meaning: "Segitiga", letters: ["مُ", "ثَ", "لَّ", "ثٌ"] }, { meaning: "Persegi Panjang", letters: ["مُ", "سْ", "تَ", "طِ", "يْ", "لٌ"] }, { meaning: "Bintang", letters: ["نَ", "جْ", "مَ", "ةٌ"] }, { meaning: "Oval / Lonjong", letters: ["بَ", "يْ", "ضَ", "وِ", "يٌّ"] }, { meaning: "Kubus", letters: ["مُ", "كَ", "عَّ", "بٌ"] }, { meaning: "Kerucut", letters: ["مَ", "خْ", "رُ", "وْ", "طٌ"] }, { meaning: "Tabung", letters: ["أُ", "سْ", "طُ", "وَ", "ا", "نَ", "ةٌ"] }, { meaning: "Garis", letters: ["خَ", "طٌّ"] } ] },
+            cuaca: { title: "الطَّقْسُ وَالفُصُولُ", themeMeaning: "Cuaca & Musim", words: [ { meaning: "Hujan", letters: ["مَ", "طَ", "رٌ"] }, { meaning: "Salju", letters: ["ثَ", "لْ", "جٌ"] }, { meaning: "Angin", letters: ["رِ", "يْ", "حٌ"] }, { meaning: "Awan", letters: ["سَ", "حَ", "ا", "بٌ"] }, { meaning: "Panas", letters: ["حَ", "ا", "رٌّ"] }, { meaning: "Dingin", letters: ["بَ", "ا", "رِ", "دٌ"] }, { meaning: "Musim Panas", letters: ["صَ", "يْ", "فٌ"] }, { meaning: "Musim Dingin", letters: ["شِ", "تَ", "ا", "ءٌ"] }, { meaning: "Musim Semi", letters: ["رَ", "بِ", "يْ", "عٌ"] }, { meaning: "Musim Gugur", letters: ["خَ", "رِ", "يْ", "فٌ"] } ] },
+            serangga: { title: "الحَشَرَاتُ", themeMeaning: "Serangga", words: [ { meaning: "Nyamuk", letters: ["بَ", "عُ", "وْ", "ضَ", "ةٌ"] }, { meaning: "Lalat", letters: ["ذُ", "بَ", "ا", "بَ", "ةٌ"] }, { meaning: "Lebah", letters: ["نَ", "حْ", "لَ", "ةٌ"] }, { meaning: "Semut", letters: ["نَ", "مْ", "لَ", "ةٌ"] }, { meaning: "Kupu-kupu", letters: ["فَ", "رَ", "ا", "شَ", "ةٌ"] }, { meaning: "Laba-laba", letters: ["عَ", "نْ", "كَ", "بُ", "وْ", "تٌ"] }, { meaning: "Belalang", letters: ["جَ", "رَ", "ا", "دَ", "ةٌ"] }, { meaning: "Kutu", letters: ["قَ", "مْ", "لَ", "ةٌ"] }, { meaning: "Ulat", letters: ["دُ", "وْ", "دَ", "ةٌ"] }, { meaning: "Kecoa", letters: ["صُ", "رْ", "صُ", "وْ", "رٌ"] } ] },
+            kesehatan: { title: "الصِّحَّةُ وَالأَمْرَاضُ", themeMeaning: "Kesehatan & Penyakit", words: [ { meaning: "Demam", letters: ["حُ", "مَّ", "ى"] }, { meaning: "Batuk", letters: ["سُ", "عَ", "ا", "لٌ"] }, { meaning: "Pilek", letters: ["زُ", "كَ", "ا", "مٌ"] }, { meaning: "Obat", letters: ["دَ", "وَ", "ا", "ءٌ"] }, { meaning: "Darah", letters: ["دَ", "مٌ"] }, { meaning: "Luka", letters: ["جُ", "رْ", "حٌ"] }, { meaning: "Sakit", letters: ["أَ", "لَ", "مٌ"] }, { meaning: "Pasien", letters: ["مَ", "رِ", "يْ", "ضٌ"] }, { meaning: "Sehat", letters: ["صِ", "حَّ", "ةٌ"] }, { meaning: "Pusing", letters: ["صُ", "دَ", "ا", "عٌ"] } ] },
+            peralatan: { title: "الأَدَوَاتُ", themeMeaning: "Peralatan Tukang", words: [ { meaning: "Palu", letters: ["مِ", "طْ", "رَ", "قَ", "ةٌ"] }, { meaning: "Paku", letters: ["مِ", "سْ", "مَ", "ا", "رٌ"] }, { meaning: "Gergaji", letters: ["مِ", "نْ", "شَ", "ا", "رٌ"] }, { meaning: "Tang", letters: ["كَ", "مَّ", "ا", "شَ", "ةٌ"] }, { meaning: "Obeng", letters: ["مِ", "فَ", "كٌّ"] }, { meaning: "Kapak", letters: ["فَ", "أْ", "سٌ"] }, { meaning: "Sekop", letters: ["مِ", "جْ", "رَ", "فَ", "ةٌ"] }, { meaning: "Bor", letters: ["مِ", "ثْ", "قَ", "ا", "بٌ"] }, { meaning: "Kunci Pas", letters: ["مِ", "فْ", "تَ", "ا", "حٌ"] }, { meaning: "Gunting", letters: ["مِ", "قَ", "صٌّ"] } ] },
+            tumbuhan: { title: "النَّبَاتَاتُ", themeMeaning: "Tumbuhan", words: [ { meaning: "Daun", letters: ["وَ", "رَ", "قَ", "ةٌ"] }, { meaning: "Bunga", letters: ["زَ", "هْ", "رَ", "ةٌ"] }, { meaning: "Rumput", letters: ["عُ", "شْ", "بٌ"] }, { meaning: "Mawar", letters: ["وَ", "رْ", "دَ", "ةٌ"] }, { meaning: "Melati", letters: ["يَ", "ا", "سْ", "مِ", "يْ", "نُ"] }, { meaning: "Akar", letters: ["جِ", "ذْ", "رٌ"] }, { meaning: "Dahan", letters: ["غُ", "صْ", "نٌ"] }, { meaning: "Biji", letters: ["بَ", "ذْ", "رَ", "ةٌ"] }, { meaning: "Batang", letters: ["سَ", "ا", "قٌ"] }, { meaning: "Buah (Hasil)", letters: ["ثَ", "مَ", "رَ", "ةٌ"] } ] },
+            elektronik: { title: "الإِلِكْتِرُونِيَّاتُ", themeMeaning: "Elektronik", words: [ { meaning: "Komputer", letters: ["حَ", "ا", "سُ", "وْ", "بٌ"] }, { meaning: "Telepon", letters: ["هَ", "ا", "تِ", "فٌ"] }, { meaning: "Televisi", letters: ["تِ", "لْ", "فَ", "ا", "زٌ"] }, { meaning: "Radio", letters: ["مِ", "ذْ", "يَ", "ا", "عٌ"] }, { meaning: "Kipas Angin", letters: ["مِ", "رْ", "وَ", "حَ", "ةٌ"] }, { meaning: "Kulkas", letters: ["ثَ", "لَّ", "ا", "جَ", "ةٌ"] }, { meaning: "Setrika", letters: ["مِ", "كْ", "وَ", "ا", "ةٌ"] }, { meaning: "Mesin Cuci", letters: ["غَ", "سَّ", "ا", "لَ", "ةٌ"] }, { meaning: "Kamera", letters: ["كَ", "ا", "مِ", "يْ", "رَ", "ا"] }, { meaning: "Layar", letters: ["شَ", "ا", "شَ", "ةٌ"] } ] },
+            makanan: { title: "الأَطْعِمَةُ", themeMeaning: "Makanan", words: [ { meaning: "Roti", letters: ["خُ", "بْ", "زٌ"] }, { meaning: "Nasi", letters: ["أَ", "رُ", "زٌّ"] }, { meaning: "Daging", letters: ["لَ", "حْ", "مٌ"] }, { meaning: "Telur", letters: ["بَ", "يْ", "ضَ", "ةٌ"] }, { meaning: "Keju", letters: ["جُ", "بْ", "نٌ"] }, { meaning: "Garam", letters: ["مِ", "لْ", "حٌ"] }, { meaning: "Gula", letters: ["سُ", "كَّ", "رٌ"] }, { meaning: "Minyak", letters: ["زَ", "يْ", "تٌ"] }, { meaning: "Kue", letters: ["كَ", "عْ", "كَ", "ةٌ"] }, { meaning: "Sup", letters: ["حَ", "سَ", "ا", "ءٌ"] } ] },
+            agama: { title: "الدِّيْنُ وَالعِبَادَةُ", themeMeaning: "Agama & Ibadah", words: [ { meaning: "Al-Quran", letters: ["قُ", "رْ", "آ", "نٌ"] }, { meaning: "Sajadah", letters: ["سَ", "جَّ", "ا", "دَ", "ةٌ"] }, { meaning: "Tasbih", letters: ["مِ", "سْ", "بَ", "حَ", "ةٌ"] }, { meaning: "Masjid", letters: ["مَ", "سْ", "جِ", "دٌ"] }, { meaning: "Mimbar", letters: ["مِ", "نْ", "بَ", "رٌ"] }, { meaning: "Wudhu", letters: ["وُ", "ضُ", "وْ", "ءٌ"] }, { meaning: "Shalat", letters: ["صَ", "لَ", "ا", "ةٌ"] }, { meaning: "Puasa", letters: ["صِ", "يَ", "ا", "مٌ"] }, { meaning: "Zakat", letters: ["زَ", "كَ", "ا", "ةٌ"] }, { meaning: "Haji", letters: ["حَ", "جٌّ"] } ] },
+            taman: { title: "فِي الحَدِيْقَةِ", themeMeaning: "Di Taman", words: [ { meaning: "Pagar", letters: ["سُ", "وْ", "رٌ"] }, { meaning: "Kolam", letters: ["بِ", "رْ", "كَ", "ةٌ"] }, { meaning: "Air Mancur", letters: ["نَ", "ا", "فُ", "وْ", "رَ", "ةٌ"] }, { meaning: "Rumput", letters: ["عُ", "شْ", "بٌ"] }, { meaning: "Bangku", letters: ["مَ", "قْ", "عَ", "دٌ"] }, { meaning: "Bunga", letters: ["زَ", "هْ", "رَ", "ةٌ"] }, { meaning: "Pohon", letters: ["شَ", "جَ", "رَ", "ةٌ"] }, { meaning: "Daun", letters: ["وَ", "رَ", "قَ", "ةٌ"] }, { meaning: "Ayunan", letters: ["أُ", "رْ", "جُ", "وْ", "حَ", "ةٌ"] }, { meaning: "Tempat Sampah", letters: ["مَ", "زْ", "بَ", "لَ", "ةٌ"] } ] },
+            laluLintas: { title: "المُرُورُ", themeMeaning: "Lalu Lintas", words: [ { meaning: "Jalan Raya", letters: ["شَ", "ا", "رِ", "عٌ"] }, { meaning: "Jembatan", letters: ["جِ", "سْ", "رٌ"] }, { meaning: "Trotoar", letters: ["رَ", "صِ", "يْ", "فٌ"] }, { meaning: "Lampu Merah", letters: ["إِ", "شَ", "ا", "رَ", "ةٌ"] }, { meaning: "Persimpangan", letters: ["تَ", "قَ", "ا", "طُ", "عٌ"] }, { meaning: "Halte", letters: ["مَ", "وْ", "قِ", "فٌ"] }, { meaning: "Tikungan", letters: ["مُ", "نْ", "عَ", "طَ", "فٌ"] }, { meaning: "Terowongan", letters: ["نَ", "فَ", "قٌ"] }, { meaning: "Kendaraan", letters: ["مَ", "رْ", "كَ", "بَ", "ةٌ"] }, { meaning: "Polisi", letters: ["شُ", "رْ", "طِ", "يٌّ"] } ] },
+            pantai: { title: "الشَّاطِئُ وَالبَحْرُ", themeMeaning: "Pantai & Laut", words: [ { meaning: "Pantai", letters: ["شَ", "ا", "طِ", "ئٌ"] }, { meaning: "Laut", letters: ["بَ", "حْ", "رٌ"] }, { meaning: "Pasir", letters: ["رَ", "مْ", "لٌ"] }, { meaning: "Ombak", letters: ["مَ", "وْ", "جٌ"] }, { meaning: "Kerang", letters: ["صَ", "دَ", "فَ", "ةٌ"] }, { meaning: "Pulau", letters: ["جَ", "زِ", "يْ", "رَ", "ةٌ"] }, { meaning: "Kapal", letters: ["سَ", "فِ", "يْ", "نَ", "ةٌ"] }, { meaning: "Perahu", letters: ["قَ", "ا", "رِ", "بٌ"] }, { meaning: "Jaring", letters: ["شَ", "بَ", "كَ", "ةٌ"] }, { meaning: "Ikan", letters: ["سَ", "مَ", "كَ", "ةٌ"] } ] },
+            sifat: { title: "الصِّفَاتُ", themeMeaning: "Kata Sifat", words: [ { meaning: "Besar", letters: ["كَ", "بِ", "يْ", "رٌ"] }, { meaning: "Kecil", letters: ["صَ", "غِ", "يْ", "رٌ"] }, { meaning: "Panjang", letters: ["طَ", "وِ", "يْ", "لٌ"] }, { meaning: "Pendek", letters: ["قَ", "صِ", "يْ", "رٌ"] }, { meaning: "Cepat", letters: ["سَ", "رِ", "يْ", "عٌ"] }, { meaning: "Lambat", letters: ["بَ", "طِ", "يْ", "ءٌ"] }, { meaning: "Baru", letters: ["جَ", "دِ", "يْ", "دٌ"] }, { meaning: "Lama / Tua", letters: ["قَ", "دِ", "يْ", "مٌ"] }, { meaning: "Bagus", letters: ["جَ", "مِ", "يْ", "لٌ"] }, { meaning: "Jelek", letters: ["قَ", "بِ", "يْ", "حٌ"] } ] }
+        };
+
+        const VALID_TOKEN = "09876"; 
+        let isAnswerShown = false;
+
+        function stripHarokat(str) {
+            return str.replace(/[\u064B-\u065F\u0670]/g, '');
+        }
+
+        function initSelect() {
+            const select = document.getElementById('theme-select');
+            select.innerHTML = '';
+            
+            const optAll = document.createElement('option');
+            optAll.value = 'all';
+            optAll.innerHTML = `🌟 UJIAN AKHIR: Campuran Acak`;
+            optAll.style.fontWeight = 'bold';
+            select.appendChild(optAll);
+            
+            const optPart1 = document.createElement('option');
+            optPart1.value = 'part1';
+            optPart1.innerHTML = `⭐ UJIAN TENGAH 1: Campuran Tema 1-5`;
+            select.appendChild(optPart1);
+
+            const optPart2 = document.createElement('option');
+            optPart2.value = 'part2';
+            optPart2.innerHTML = `⭐ UJIAN TENGAH 2: Campuran Tema 6-10`;
+            select.appendChild(optPart2);
+
+            const optPart3 = document.createElement('option');
+            optPart3.value = 'part3';
+            optPart3.innerHTML = `⭐ UJIAN TENGAH 3: Campuran Tema 11-15`;
+            select.appendChild(optPart3);
+
+            const optPart4 = document.createElement('option');
+            optPart4.value = 'part4';
+            optPart4.innerHTML = `⭐ UJIAN TENGAH 4: Campuran Tema 16-20`;
+            select.appendChild(optPart4);
+
+            const optDiv = document.createElement('option');
+            optDiv.disabled = true;
+            optDiv.innerHTML = `─────────── PILIH PER-TEMA ───────────`;
+            select.appendChild(optDiv);
+
+            for (const key in dictionary) {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.innerHTML = `${dictionary[key].title} (${dictionary[key].themeMeaning})`;
+                select.appendChild(opt);
+            }
+        }
+
+        function checkLoginStatus() {
+            if (sessionStorage.getItem('alfal_jumbled_logged_in')) {
+                document.getElementById('login-overlay').style.display = 'none';
+            }
+        }
+
+        function handleLogin() {
+            const token = document.getElementById('login-token').value.trim();
+            const errorDiv = document.getElementById('login-error');
+
+            if (token === VALID_TOKEN || token === "SUSUN26") {
+                sessionStorage.setItem('alfal_jumbled_logged_in', 'true');
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('difficulty').value = 'sulit';
+                generateWorksheet();
+            } else {
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        function updateHeader() {
+            document.getElementById('display-school').innerText = document.getElementById('school-name').value;
+        }
+
+        function toggleStyle() {
+            const style = document.getElementById('style-select').value;
+            const content = document.getElementById('worksheet-content');
+            if (style === 'tanpa_hiasan') {
+                content.classList.add('mode-polos');
+            } else {
+                content.classList.remove('mode-polos');
+            }
+        }
+
+        function toggleAnswer() {
+            const content = document.getElementById('worksheet-content');
+            const btn = document.getElementById('btn-toggle-answer');
+            isAnswerShown = !isAnswerShown;
+            
+            if (isAnswerShown) {
+                content.classList.add('show-answer');
+                btn.classList.replace('bg-emerald-100', 'bg-red-100');
+                btn.classList.replace('text-emerald-700', 'text-red-700');
+                btn.classList.replace('border-emerald-300', 'border-red-300');
+                btn.innerHTML = `<i class="fa-solid fa-eye-slash"></i> Sembunyikan Kunci`;
+            } else {
+                content.classList.remove('show-answer');
+                btn.classList.replace('bg-red-100', 'bg-emerald-100');
+                btn.classList.replace('text-red-700', 'text-emerald-700');
+                btn.classList.replace('border-red-300', 'border-emerald-300');
+                btn.innerHTML = `<i class="fa-solid fa-eye"></i> Kunci Jawaban`;
+            }
+        }
+
+        function shuffle(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        function generateWorksheet() {
+            const themeKey = document.getElementById('theme-select').value;
+            const diffValue = document.getElementById('difficulty').value;
+            
+            let questionCount = 8;
+            if (diffValue === 'mudah') questionCount = 5;
+            if (diffValue === 'sulit') questionCount = 10;
+
+            let wordsList = [];
+
+            if (['all', 'part1', 'part2', 'part3', 'part4'].includes(themeKey)) {
+                let keys = Object.keys(dictionary);
+                let selectedKeys = [];
+                
+                if (themeKey === 'all') {
+                    document.getElementById('display-arabic-theme').innerText = "مُفْرَدَاتٌ مُتَنَوِّعَةٌ";
+                    document.getElementById('display-theme-meaning').innerText = "(Ujian Akhir: Semua Tema)";
+                    selectedKeys = keys;
+                } else if (themeKey === 'part1') {
+                    document.getElementById('display-arabic-theme').innerText = "مُرَاجَعَةُ الدُّرُوسِ (١)";
+                    document.getElementById('display-theme-meaning').innerText = "(Ujian Tengah 1: Tema 1-5)";
+                    selectedKeys = keys.slice(0, 5);
+                } else if (themeKey === 'part2') {
+                    document.getElementById('display-arabic-theme').innerText = "مُرَاجَعَةُ الدُّرُوسِ (٢)";
+                    document.getElementById('display-theme-meaning').innerText = "(Ujian Tengah 2: Tema 6-10)";
+                    selectedKeys = keys.slice(5, 10);
+                } else if (themeKey === 'part3') {
+                    document.getElementById('display-arabic-theme').innerText = "مُرَاجَعَةُ الدُّرُوسِ (٣)";
+                    document.getElementById('display-theme-meaning').innerText = "(Ujian Tengah 3: Tema 11-15)";
+                    selectedKeys = keys.slice(10, 15);
+                } else if (themeKey === 'part4') {
+                    document.getElementById('display-arabic-theme').innerText = "مُرَاجَعَةُ الدُّرُوسِ (٤)";
+                    document.getElementById('display-theme-meaning').innerText = "(Ujian Tengah 4: Tema 16-20)";
+                    selectedKeys = keys.slice(15, 20);
+                }
+
+                let poolWords = [];
+                selectedKeys.forEach(k => {
+                    poolWords = poolWords.concat(dictionary[k].words);
+                });
+                shuffle(poolWords);
+                wordsList = poolWords.slice(0, questionCount);
+            } else {
+                const themeData = dictionary[themeKey];
+                document.getElementById('display-arabic-theme').innerText = themeData.title;
+                document.getElementById('display-theme-meaning').innerText = `(${themeData.themeMeaning})`;
+                wordsList = [...themeData.words];
+                shuffle(wordsList);
+                wordsList = wordsList.slice(0, questionCount);
+            }
+
+            renderJumbledWords(wordsList);
+        }
+
+        function renderJumbledWords(wordsArray) {
+            const container = document.getElementById('list-container');
+            container.innerHTML = '';
+
+            wordsArray.forEach((item, index) => {
+                let scrambledLetters = [...item.letters];
+                
+                if (scrambledLetters.length > 1) {
+                    let originalStr = scrambledLetters.join('');
+                    let attempts = 0;
+                    while (scrambledLetters.join('') === originalStr && attempts < 10) {
+                        shuffle(scrambledLetters);
+                        attempts++;
+                    }
+                }
+
+                let el = document.createElement('div');
+                el.className = 'jumbled-item';
+                
+                let boxesHTML = scrambledLetters.map(letter => `<div class="letter-box">${letter}</div>`).join('');
+
+                el.innerHTML = `
+                    <div class="text-[10px] font-bold text-slate-600 mb-0 flex items-center gap-2">
+                        <span class="bg-teal-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[9px]">${index + 1}</span>
+                        Arti: <span class="text-teal-700 uppercase tracking-wide">${item.meaning}</span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between gap-3 w-full" dir="rtl">
+                        <div class="flex gap-1 flex-wrap max-w-[50%] pt-1">
+                            ${boxesHTML}
+                        </div>
+                        
+                        <div class="text-teal-300 text-sm opacity-60 px-1 shrink-0">
+                            <i class="fa-solid fa-arrow-left"></i>
+                        </div>
+                        
+                        <div class="answer-line relative flex items-center justify-center mt-1">
+                            <span class="answer-text">${item.letters.join('')}</span>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(el);
+            });
+        }
+
+        async function exportToPDF() {
+            const btn = document.getElementById('btn-download-pdf');
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Memproses PDF...`;
+            btn.disabled = true;
+
+            await document.fonts.ready;
+
+            const element = document.getElementById('worksheet-wrapper');
+            let fileName = 'Worksheet_Menyusun_Huruf.pdf';
+            
+            element.style.boxShadow = 'none';
+            
+            const opt = {
+                margin:       0,
+                filename:     fileName,
+                image:        { type: 'jpeg', quality: 1.0 },
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    letterRendering: true,
+                    backgroundColor: '#ffffff'
+                },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }).catch(err => {
+                console.error("PDF Gagal:", err);
+                element.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+        }
+
+        window.onload = () => {
+            initSelect();
+            checkLoginStatus();
+            document.getElementById('difficulty').value = 'sulit';
+        };
+    </script>
+</body>
+</html>
