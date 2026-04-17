@@ -312,6 +312,14 @@
                     <option value="tanpa_hiasan">📄 Tanpa Hiasan (Polos)</option>
                 </select>
 
+                <label class="block text-xs md:text-sm font-medium text-slate-700 mb-1">Warna Latar Kotak</label>
+                <select id="bg-color-select" onchange="changeBgColor()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4 bg-white">
+                    <option value="biru" selected>💧 Biru Muda</option>
+                    <option value="hijau">🌿 Hijau Muda</option>
+                    <option value="krem">🍦 Krem (Kuning Pucat)</option>
+                    <option value="oren">🍊 Oren Muda</option>
+                </select>
+
                 <label class="block text-xs md:text-sm font-medium text-slate-700 mb-1">Pilih Tema Mufrodat</label>
                 <select id="theme-select" onchange="generateWorksheet()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4">
                     <!-- Tema dimuat otomatis -->
@@ -554,6 +562,20 @@
                 content.classList.add('mode-polos');
             } else {
                 content.classList.remove('mode-polos');
+            }
+        }
+
+        function changeBgColor() {
+            const selectVal = document.getElementById('bg-color-select').value;
+            const innerBorder = document.querySelector('.worksheet-inner-border');
+            const colors = {
+                'hijau': '#f0fdf4', // Hijau muda (emerald-50)
+                'biru': '#f0f9ff',  // Biru muda (sky-50)
+                'krem': '#fefce8',  // Krem / Kuning pucat (yellow-50)
+                'oren': '#fff7ed'   // Oren muda (orange-50)
+            };
+            if(colors[selectVal]) {
+                innerBorder.style.backgroundColor = colors[selectVal];
             }
         }
 
